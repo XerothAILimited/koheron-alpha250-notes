@@ -17,6 +17,8 @@ cell xilinx.com:ip:clk_wiz pll_0 {
 cell xilinx.com:ip:xlconstant const_0
 
 # Create processing_system7
+# NOTE: SPI0 EMIO connections removed - spi_init module handles Configuration SPI
+# SPI1 retained for Precision ADC (separate from Configuration SPI)
 cell xilinx.com:ip:processing_system7 ps_0 {
   PCW_IMPORT_BOARD_PRESET cfg/koheron_alpha250.xml
   PCW_USE_S_AXI_ACP 1
@@ -24,13 +26,6 @@ cell xilinx.com:ip:processing_system7 ps_0 {
 } {
   M_AXI_GP0_ACLK pll_0/clk_out1
   S_AXI_ACP_ACLK pll_0/clk_out1
-  SPI0_SCLK_O spi_cfg_sclk
-  SPI0_MOSI_O spi_cfg_mosi
-  SPI0_MISO_I spi_cfg_miso
-  SPI0_SS_I const_0/dout
-  SPI0_SS_O spi_cfg_ss
-  SPI0_SS1_O spi_cfg_ss1
-  SPI0_SS2_O spi_cfg_ss2
   SPI1_SCLK_O spi_adc_sclk
   SPI1_MOSI_O spi_adc_mosi
   SPI1_MISO_I spi_adc_miso
@@ -44,6 +39,22 @@ apply_bd_automation -rule xilinx.com:bd_rule:processing_system7 -config {
   Master Disable
   Slave Disable
 } [get_bd_cells ps_0]
+
+# Create spi_init - automatic SPI initialization for LMK04906 and ADCs
+# Uses FCLK_CLK0 (200 MHz from PS) which is always available at power-up
+# Runs before Linux boots, eliminating chicken-and-egg clock initialization problem
+cell pavel-demin:user:spi_init spi_init_0 {} {
+  clk ps_0/FCLK_CLK0
+  aresetn ps_0/FCLK_RESET0_N
+  spi_sclk spi_cfg_sclk
+  spi_mosi spi_cfg_mosi
+  spi_ss0_n spi_cfg_ss
+  spi_ss1_n spi_cfg_ss1
+  spi_ss2_n spi_cfg_ss2
+}
+
+# Note: spi_cfg_miso input port is left unconnected (spi_init is write-only)
+# Note: spi_init_0/init_done output is left unconnected (could be routed to LED/debug)
 
 # Create proc_sys_reset
 cell xilinx.com:ip:proc_sys_reset rst_0 {} {
