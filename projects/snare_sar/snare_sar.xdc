@@ -60,3 +60,16 @@ set_property SLEW FAST [get_ports txdata_out]
 # PPS is 1 Hz, MUXOUT is used for lock detect polling
 set_false_path -from [get_ports pps_in]
 set_false_path -from [get_ports muxout_in]
+
+# =============================================================================
+# CE TREE TIMING FIX - Added 2026-01-29
+# =============================================================================
+# Problem: FIR Compiler not_full signal has 7503 fanout, source at Y=93,
+#          DSP loads at Y=1-59. Route delay dominates (2.9ns of 3.3ns path).
+# Solution: Constrain source register to Y=30 (center of DSP range) so that
+#           phys_opt_design creates replicas closer to loads.
+# Target: Improve WNS from +0.027ns to ≥+1.0ns
+# =============================================================================
+
+# Constrain the not_full source register to center of DSP Y range
+set_property LOC SLICE_X54Y30 [get_cells -hier -filter {NAME =~ *g_m_data_chan_fifo*not_full_1_reg && REF_NAME == FDSE}]
