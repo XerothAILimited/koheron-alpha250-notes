@@ -1,11 +1,35 @@
+# ==============================================================================
+# snareSAR GPIO Port Override
+# Remove the default exp_p/exp_n bidirectional ports and create specific ports
+# ==============================================================================
+
+# Delete default expansion connector ports (created by cfg/ports.tcl)
+delete_bd_objs [get_bd_ports exp_n]
+delete_bd_objs [get_bd_ports exp_p]
+
+# Create snareSAR-specific GPIO ports
+# Inputs (directly to FPGA from external hardware)
+create_bd_port -dir I pps_in
+create_bd_port -dir I muxout_in
+
+# Outputs (directly from FPGA to external hardware)
+create_bd_port -dir O adf_ce
+create_bd_port -dir O adf_clk
+create_bd_port -dir O adf_data
+create_bd_port -dir O adf_le
+create_bd_port -dir O pol_gpio
+create_bd_port -dir O txdata_out
+
+# ==============================================================================
+
 # Create clk_wiz
 cell xilinx.com:ip:clk_wiz pll_0 {
   PRIMITIVE PLL
   PRIM_IN_FREQ.VALUE_SRC USER
-  PRIM_IN_FREQ 250.0
+  PRIM_IN_FREQ 225.0
   PRIM_SOURCE Differential_clock_capable_pin
   CLKOUT1_USED true
-  CLKOUT1_REQUESTED_OUT_FREQ 250.0
+  CLKOUT1_REQUESTED_OUT_FREQ 225.0
   CLKOUT1_REQUESTED_PHASE 78.75
   USE_RESET false
 } {
@@ -83,8 +107,8 @@ for {set i 0} {$i <= 3} {incr i} {
 
 # Create axi_hub
 cell pavel-demin:user:axi_hub hub_0 {
-  CFG_DATA_WIDTH 96
-  STS_DATA_WIDTH 32
+  CFG_DATA_WIDTH 160
+  STS_DATA_WIDTH 128
 } {
   S_AXI ps_0/M_AXI_GP0
   aclk pll_0/clk_out1
@@ -93,35 +117,86 @@ cell pavel-demin:user:axi_hub hub_0 {
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_0 {
-  DIN_WIDTH 96 DIN_FROM 0 DIN_TO 0
+  DIN_WIDTH 160 DIN_FROM 0 DIN_TO 0
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_1 {
-  DIN_WIDTH 96 DIN_FROM 1 DIN_TO 1
+  DIN_WIDTH 160 DIN_FROM 1 DIN_TO 1
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_2 {
-  DIN_WIDTH 96 DIN_FROM 2 DIN_TO 2
+  DIN_WIDTH 160 DIN_FROM 2 DIN_TO 2
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_3 {
-  DIN_WIDTH 96 DIN_FROM 63 DIN_TO 32
+  DIN_WIDTH 160 DIN_FROM 63 DIN_TO 32
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_4 {
-  DIN_WIDTH 96 DIN_FROM 95 DIN_TO 64
+  DIN_WIDTH 160 DIN_FROM 95 DIN_TO 64
+} {
+  din hub_0/cfg_data
+}
+
+# snareSAR Configuration Port Slicers
+
+# prf_enable: cfg_data[96]
+cell pavel-demin:user:port_slicer slice_prf_enable {
+  DIN_WIDTH 160 DIN_FROM 96 DIN_TO 96
+} {
+  din hub_0/cfg_data
+}
+
+# prf_divider: cfg_data[113:97]
+cell pavel-demin:user:port_slicer slice_prf_divider {
+  DIN_WIDTH 160 DIN_FROM 113 DIN_TO 97
+} {
+  din hub_0/cfg_data
+}
+
+# trigger_width: cfg_data[125:114]
+cell pavel-demin:user:port_slicer slice_trigger_width {
+  DIN_WIDTH 160 DIN_FROM 125 DIN_TO 114
+} {
+  din hub_0/cfg_data
+}
+
+# pol_auto: cfg_data[126]
+cell pavel-demin:user:port_slicer slice_pol_auto {
+  DIN_WIDTH 160 DIN_FROM 126 DIN_TO 126
+} {
+  din hub_0/cfg_data
+}
+
+# pol_manual: cfg_data[127]
+cell pavel-demin:user:port_slicer slice_pol_manual {
+  DIN_WIDTH 160 DIN_FROM 127 DIN_TO 127
+} {
+  din hub_0/cfg_data
+}
+
+# gate_delay: cfg_data[143:128]
+cell pavel-demin:user:port_slicer slice_gate_delay {
+  DIN_WIDTH 160 DIN_FROM 143 DIN_TO 128
+} {
+  din hub_0/cfg_data
+}
+
+# gate_duration: cfg_data[159:144]
+cell pavel-demin:user:port_slicer slice_gate_duration {
+  DIN_WIDTH 160 DIN_FROM 159 DIN_TO 144
 } {
   din hub_0/cfg_data
 }
@@ -136,8 +211,8 @@ for {set i 0} {$i <= 3} {incr i} {
     FILTER_TYPE Decimation
     NUMBER_OF_STAGES 6
     FIXED_OR_INITIAL_RATE 4
-    INPUT_SAMPLE_FREQUENCY 250
-    CLOCK_FREQUENCY 250
+    INPUT_SAMPLE_FREQUENCY 225
+    CLOCK_FREQUENCY 225
     INPUT_DATA_WIDTH 14
     QUANTIZATION Truncation
     OUTPUT_DATA_WIDTH 24
@@ -179,8 +254,8 @@ cell xilinx.com:ip:fir_compiler fir_0 {
   DECIMATION_RATE 2
   NUMBER_CHANNELS 1
   NUMBER_PATHS 4
-  SAMPLE_FREQUENCY 62.5
-  CLOCK_FREQUENCY 250
+  SAMPLE_FREQUENCY 56.25
+  CLOCK_FREQUENCY 225
   OUTPUT_ROUNDING_MODE Convergent_Rounding_to_Even
   OUTPUT_WIDTH 18
   M_DATA_HAS_TREADY true
@@ -204,6 +279,114 @@ cell xilinx.com:ip:axis_subset_converter subset_0 {
   aresetn slice_0/dout
 }
 
+# ==============================================================================
+# snareSAR Timing and Control Modules
+# ==============================================================================
+
+# PPS Synchronizer - 3-stage sync with falling edge detection
+cell pavel-demin:user:pps_sync pps_sync_0 {} {
+  aclk pll_0/clk_out1
+  aresetn rst_0/peripheral_aresetn
+  pps_in pps_in
+}
+
+# PRF Timing Generator - generates PRF pulses with PPS sync
+cell pavel-demin:user:prf_timing prf_timing_0 {} {
+  aclk pll_0/clk_out1
+  aresetn rst_0/peripheral_aresetn
+  prf_enable slice_prf_enable/dout
+  pps_pulse pps_sync_0/pps_pulse
+  prf_divider slice_prf_divider/dout
+  trigger_width slice_trigger_width/dout
+  txdata_out txdata_out
+}
+
+# Polarization Controller - RF switch control
+cell pavel-demin:user:pol_controller pol_ctrl_0 {} {
+  aclk pll_0/clk_out1
+  aresetn rst_0/peripheral_aresetn
+  prf_pulse prf_timing_0/prf_pulse
+  pol_auto slice_pol_auto/dout
+  pol_manual slice_pol_manual/dout
+  pol_gpio pol_gpio
+}
+
+# ADF4159 SPI Interface - PLL configuration (directly connect outputs)
+cell pavel-demin:user:adf4159_spi adf4159_spi_0 {} {
+  aclk pll_0/clk_out1
+  aresetn rst_0/peripheral_aresetn
+  spi_start const_0/dout
+  spi_data const_0/dout
+  ce_out adf_ce
+  clk_out adf_clk
+  data_out adf_data
+  le_out adf_le
+  muxout_in muxout_in
+}
+
+# Range Gate - captures samples after delay
+cell pavel-demin:user:axis_gate axis_gate_0 {} {
+  aclk pll_0/clk_out1
+  aresetn rst_0/peripheral_aresetn
+  prf_pulse prf_timing_0/prf_pulse
+  gate_delay slice_gate_delay/dout
+  gate_duration slice_gate_duration/dout
+  S_AXIS subset_0/M_AXIS
+}
+
+# Constant for n_samples (100 for carSAR)
+cell xilinx.com:ip:xlconstant const_n_samples {
+  CONST_WIDTH 16
+  CONST_VAL 100
+}
+
+# Constant for flags (0 = normal mode)
+cell xilinx.com:ip:xlconstant const_flags {
+  CONST_WIDTH 8
+  CONST_VAL 0
+}
+
+# Header Insert - adds 16-byte header to each packet
+cell pavel-demin:user:header_insert header_insert_0 {} {
+  aclk pll_0/clk_out1
+  aresetn rst_0/peripheral_aresetn
+  prf_pulse prf_timing_0/prf_pulse
+  prf_count prf_timing_0/prf_count
+  pps_count prf_timing_0/pps_count
+  n_samples const_n_samples/dout
+  pol pol_ctrl_0/current_pol
+  flags const_flags/dout
+  S_AXIS axis_gate_0/M_AXIS
+}
+
+# Status Concatenation - combines status values for sts_data[127:0]
+# sts_data[15:0]   = writer_addr (from writer_0, connected later)
+# sts_data[31:16]  = reserved (zero)
+# sts_data[63:32]  = prf_count
+# sts_data[95:64]  = pps_count
+# sts_data[127:96] = prf_at_pps
+
+# Constant zero for reserved bits
+cell xilinx.com:ip:xlconstant const_sts_reserved {
+  CONST_WIDTH 16
+  CONST_VAL 0
+}
+
+cell xilinx.com:ip:xlconcat sts_concat_0 {
+  NUM_PORTS 5
+  IN0_WIDTH 16
+  IN1_WIDTH 16
+  IN2_WIDTH 32
+  IN3_WIDTH 32
+  IN4_WIDTH 32
+} {
+  In1 const_sts_reserved/dout
+  In2 prf_timing_0/prf_count
+  In3 prf_timing_0/pps_count
+  In4 prf_timing_0/prf_at_pps
+  dout hub_0/sts_data
+}
+
 # Create axis_packetizer
 cell pavel-demin:user:axis_packetizer pktzr_0 {
   AXIS_TDATA_WIDTH 64
@@ -211,7 +394,7 @@ cell pavel-demin:user:axis_packetizer pktzr_0 {
   CONTINUOUS FALSE
   ALWAYS_READY TRUE
 } {
-  S_AXIS subset_0/M_AXIS
+  S_AXIS header_insert_0/M_AXIS
   cfg_data slice_4/dout
   aclk pll_0/clk_out1
   aresetn slice_1/dout
@@ -234,7 +417,7 @@ cell pavel-demin:user:axis_ram_writer writer_0 {
   M_AXI ps_0/S_AXI_ACP
   min_addr slice_3/dout
   cfg_data const_1/dout
-  sts_data hub_0/sts_data
+  sts_data sts_concat_0/In0
   aclk pll_0/clk_out1
   aresetn slice_2/dout
 }
