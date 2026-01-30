@@ -3,14 +3,14 @@
 // FIXED: 27 January 2026 - Always fire PRF at PPS to compensate for clock drift
 //
 // Generates PRF pulses at configurable rate with PPS synchronization
-// Designed for 250 MHz FPGA clock, 2500 Hz default PRF
+// Designed for 225 MHz FPGA clock, 2500 Hz default PRF
 
 module prf_timing (
-    input  wire        aclk,           // 250 MHz clock
+    input  wire        aclk,           // 225 MHz clock
     input  wire        aresetn,        // Active-low synchronous reset
     input  wire        prf_enable,     // Enable PRF generation
     input  wire        pps_pulse,      // PPS trigger from pps_sync
-    input  wire [16:0] prf_divider,    // PRF period in clocks (default: 100000)
+    input  wire [16:0] prf_divider,    // PRF period in clocks (default: 90000)
     input  wire [11:0] trigger_width,  // TXDATA pulse width in clocks
     output reg         prf_pulse,      // Single-cycle PRF pulse
     output reg  [31:0] prf_count,      // Running PRF counter
@@ -33,7 +33,7 @@ module prf_timing (
     always @(posedge aclk) begin
         if (!aresetn) begin
             divider_count <= 17'd0;
-            prf_threshold <= 17'd99999;  // Default: 100000 - 1
+            prf_threshold <= 17'd89999;  // Default: 90000 - 1
             prf_pulse     <= 1'b0;
             prf_count     <= 32'd0;
             pps_count     <= 32'd0;
