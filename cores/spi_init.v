@@ -66,9 +66,9 @@ module spi_init
   initial begin
     lmk_rom[0]  = 32'h00020000;  // R0: RESET=1
     lmk_rom[1]  = 32'h00001F40;  // R0: Config with RESET=0
-    lmk_rom[2]  = 32'h00000141;  // R1
+    lmk_rom[2]  = 32'h00000161;  // R1: CLKout1_DIV=11 (225MHz)
     lmk_rom[3]  = 32'h00000142;  // R2
-    lmk_rom[4]  = 32'h00000143;  // R3
+    lmk_rom[4]  = 32'h00000163;  // R3: CLKout3_DIV=11 (225MHz)
     lmk_rom[5]  = 32'h80001F44;  // R4
     lmk_rom[6]  = 32'h80001F45;  // R5
     lmk_rom[7]  = 32'h01800006;  // R6: CLKout0
@@ -86,9 +86,9 @@ module spi_init
     lmk_rom[19] = 32'h01010019;  // R25
     lmk_rom[20] = 32'hAFA8001A;  // R26: PLL2_DLD
     lmk_rom[21] = 32'h1800005B;  // R27
-    lmk_rom[22] = 32'h0020029C;  // R28: PLL1_N, PLL2_R
-    lmk_rom[23] = 32'h010000BD;  // R29
-    lmk_rom[24] = 32'h050000BE;  // R30: SYNC
+    lmk_rom[22] = 32'h0080029C;  // R28: PLL2_R=8 (225MHz)
+    lmk_rom[23] = 32'h01000C7D;  // R29: PLL2_N_CAL=99 (225MHz)
+    lmk_rom[24] = 32'h05000C7E;  // R30: PLL2_N=99 (225MHz), triggers VCO cal
   end
 
   // LTC2157 ADC configuration data (3 commands, 16 bits each)
