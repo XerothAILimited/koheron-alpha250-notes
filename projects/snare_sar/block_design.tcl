@@ -1,4 +1,48 @@
 # ==============================================================================
+# snareSAR FPGA Block Design -- v1.5.0
+#
+# Changes from v1.4.0:
+#   C1  ADF4159 SPI control via CFG registers (spi_data, spi_start)
+#   C2  Configurable n_samples (replaces const_n_samples)
+#   C3  Configurable flags (replaces const_flags)
+#   C4  STS expanded to 160 bits (current_pol, pps_level)
+#   C5  Packetizer CONTINUOUS = TRUE for streaming
+#   C6  CFG_DATA_WIDTH 160->224, STS_DATA_WIDTH 128->160
+#   C7  ADF4159 spi_busy routed to STS[130] for software polling
+#
+# CFG bit layout (224 bits = 7 words):
+#   [0]         pipeline_aresetn     (existing)
+#   [1]         pktzr_aresetn        (existing)
+#   [2]         writer_aresetn       (existing)
+#   [31:3]      (reserved)           (existing)
+#   [63:32]     min_addr             (existing)
+#   [95:64]     packet_size          (existing)
+#   [96]        prf_enable           (existing)
+#   [113:97]    prf_divider          (existing)
+#   [125:114]   trigger_width        (existing)
+#   [126]       pol_auto             (existing)
+#   [127]       pol_manual           (existing)
+#   [143:128]   gate_delay           (existing)
+#   [159:144]   gate_duration        (existing)
+#   [191:160]   adf_spi_data         (NEW -- C1, Word 5)
+#   [192]       adf_spi_start        (NEW -- C1, Word 6 bit 0)
+#   [199:193]   (reserved)           (NEW -- write zero)
+#   [207:200]   flags                (NEW -- C3, Word 6 bits 15:8)
+#   [223:208]   n_samples            (NEW -- C2, Word 6 bits 31:16)
+#
+# STS bit layout (160 bits = 5 words):
+#   [15:0]      writer_addr          (existing)
+#   [31:16]     (reserved)           (existing)
+#   [63:32]     prf_count            (existing)
+#   [95:64]     pps_count            (existing)
+#   [127:96]    prf_at_pps           (existing)
+#   [128]       current_pol          (NEW -- C4, Word 4 bit 0)
+#   [129]       pps_level            (NEW -- C4, Word 4 bit 1)
+#   [130]       spi_busy             (NEW -- C7, Word 4 bit 2)
+#   [159:131]   (reserved)           (NEW -- reads zero)
+# ==============================================================================
+
+# ==============================================================================
 # snareSAR GPIO Port Override
 # Remove the default exp_p/exp_n bidirectional ports and create specific ports
 # ==============================================================================
@@ -78,7 +122,7 @@ cell pavel-demin:user:spi_init spi_init_0 {} {
 }
 
 # Note: spi_cfg_miso input port is left unconnected (spi_init is write-only)
-# Note: spi_init_0/init_done output is left unconnected (could be routed to LED/debug)
+# Note: spi_init_0/init_done output is left unconnected (v1.6.0 will route via CDC)
 
 # Create proc_sys_reset
 cell xilinx.com:ip:proc_sys_reset rst_0 {} {
@@ -106,9 +150,11 @@ for {set i 0} {$i <= 3} {incr i} {
 # HUB
 
 # Create axi_hub
+# v1.5.0 C6: CFG_DATA_WIDTH 160->224 (new fields for C1, C2, C3)
+# v1.5.0 C6: STS_DATA_WIDTH 128->160 (new fields for C4, C7)
 cell pavel-demin:user:axi_hub hub_0 {
-  CFG_DATA_WIDTH 160
-  STS_DATA_WIDTH 128
+  CFG_DATA_WIDTH 224
+  STS_DATA_WIDTH 160
 } {
   S_AXI ps_0/M_AXI_GP0
   aclk pll_0/clk_out1
@@ -117,35 +163,35 @@ cell pavel-demin:user:axi_hub hub_0 {
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_0 {
-  DIN_WIDTH 160 DIN_FROM 0 DIN_TO 0
+  DIN_WIDTH 224 DIN_FROM 0 DIN_TO 0
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_1 {
-  DIN_WIDTH 160 DIN_FROM 1 DIN_TO 1
+  DIN_WIDTH 224 DIN_FROM 1 DIN_TO 1
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_2 {
-  DIN_WIDTH 160 DIN_FROM 2 DIN_TO 2
+  DIN_WIDTH 224 DIN_FROM 2 DIN_TO 2
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_3 {
-  DIN_WIDTH 160 DIN_FROM 63 DIN_TO 32
+  DIN_WIDTH 224 DIN_FROM 63 DIN_TO 32
 } {
   din hub_0/cfg_data
 }
 
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_4 {
-  DIN_WIDTH 160 DIN_FROM 95 DIN_TO 64
+  DIN_WIDTH 224 DIN_FROM 95 DIN_TO 64
 } {
   din hub_0/cfg_data
 }
@@ -154,49 +200,81 @@ cell pavel-demin:user:port_slicer slice_4 {
 
 # prf_enable: cfg_data[96]
 cell pavel-demin:user:port_slicer slice_prf_enable {
-  DIN_WIDTH 160 DIN_FROM 96 DIN_TO 96
+  DIN_WIDTH 224 DIN_FROM 96 DIN_TO 96
 } {
   din hub_0/cfg_data
 }
 
 # prf_divider: cfg_data[113:97]
 cell pavel-demin:user:port_slicer slice_prf_divider {
-  DIN_WIDTH 160 DIN_FROM 113 DIN_TO 97
+  DIN_WIDTH 224 DIN_FROM 113 DIN_TO 97
 } {
   din hub_0/cfg_data
 }
 
 # trigger_width: cfg_data[125:114]
 cell pavel-demin:user:port_slicer slice_trigger_width {
-  DIN_WIDTH 160 DIN_FROM 125 DIN_TO 114
+  DIN_WIDTH 224 DIN_FROM 125 DIN_TO 114
 } {
   din hub_0/cfg_data
 }
 
 # pol_auto: cfg_data[126]
 cell pavel-demin:user:port_slicer slice_pol_auto {
-  DIN_WIDTH 160 DIN_FROM 126 DIN_TO 126
+  DIN_WIDTH 224 DIN_FROM 126 DIN_TO 126
 } {
   din hub_0/cfg_data
 }
 
 # pol_manual: cfg_data[127]
 cell pavel-demin:user:port_slicer slice_pol_manual {
-  DIN_WIDTH 160 DIN_FROM 127 DIN_TO 127
+  DIN_WIDTH 224 DIN_FROM 127 DIN_TO 127
 } {
   din hub_0/cfg_data
 }
 
 # gate_delay: cfg_data[143:128]
 cell pavel-demin:user:port_slicer slice_gate_delay {
-  DIN_WIDTH 160 DIN_FROM 143 DIN_TO 128
+  DIN_WIDTH 224 DIN_FROM 143 DIN_TO 128
 } {
   din hub_0/cfg_data
 }
 
 # gate_duration: cfg_data[159:144]
 cell pavel-demin:user:port_slicer slice_gate_duration {
-  DIN_WIDTH 160 DIN_FROM 159 DIN_TO 144
+  DIN_WIDTH 224 DIN_FROM 159 DIN_TO 144
+} {
+  din hub_0/cfg_data
+}
+
+# ==============================================================================
+# v1.5.0 New Configuration Port Slicers (C1, C2, C3)
+# ==============================================================================
+
+# adf_spi_data: cfg_data[191:160] -- ADF4159 32-bit register value (C1, Word 5)
+cell pavel-demin:user:port_slicer slice_adf_spi_data {
+  DIN_WIDTH 224 DIN_FROM 191 DIN_TO 160
+} {
+  din hub_0/cfg_data
+}
+
+# adf_spi_start: cfg_data[192] -- ADF4159 SPI transaction trigger (C1, Word 6 bit 0)
+cell pavel-demin:user:port_slicer slice_adf_spi_start {
+  DIN_WIDTH 224 DIN_FROM 192 DIN_TO 192
+} {
+  din hub_0/cfg_data
+}
+
+# flags: cfg_data[207:200] -- header flags field (C3, Word 6 bits 15:8)
+cell pavel-demin:user:port_slicer slice_flags {
+  DIN_WIDTH 224 DIN_FROM 207 DIN_TO 200
+} {
+  din hub_0/cfg_data
+}
+
+# n_samples: cfg_data[223:208] -- header n_samples field (C2, Word 6 bits 31:16)
+cell pavel-demin:user:port_slicer slice_n_samples {
+  DIN_WIDTH 224 DIN_FROM 223 DIN_TO 208
 } {
   din hub_0/cfg_data
 }
@@ -311,12 +389,22 @@ cell pavel-demin:user:pol_controller pol_ctrl_0 {} {
   pol_gpio pol_gpio
 }
 
-# ADF4159 SPI Interface - PLL configuration (directly connect outputs)
+# ADF4159 SPI Interface - PLL configuration
+# v1.5.0 C1: spi_start and spi_data now driven from CFG registers
+#   spi_data  <- slice_adf_spi_data/dout  = cfg_data[191:160] (32 bits)
+#   spi_start <- slice_adf_spi_start/dout = cfg_data[192]     (1 bit)
+# Software protocol: write spi_data -> set spi_start=1 -> poll spi_busy
+#   until 0 -> clear spi_start=0 -> repeat for next register.
+# WARNING: spi_start is LEVEL-SENSITIVE. If left high after transaction
+#   completes, the module will immediately fire again. Software MUST
+#   clear spi_start after each transaction.
+# v1.5.0 C7: spi_busy routed to STS[130] for software polling.
+#   spi_done remains unconnected (single-cycle pulse, not useful for polling).
 cell pavel-demin:user:adf4159_spi adf4159_spi_0 {} {
   aclk pll_0/clk_out1
   aresetn rst_0/peripheral_aresetn
-  spi_start const_0/dout
-  spi_data const_0/dout
+  spi_start slice_adf_spi_start/dout
+  spi_data slice_adf_spi_data/dout
   ce_out adf_ce
   clk_out adf_clk
   data_out adf_data
@@ -334,64 +422,87 @@ cell pavel-demin:user:axis_gate axis_gate_0 {} {
   S_AXIS subset_0/M_AXIS
 }
 
-# Constant for n_samples (100 for carSAR)
-cell xilinx.com:ip:xlconstant const_n_samples {
-  CONST_WIDTH 16
-  CONST_VAL 100
-}
-
-# Constant for flags (0 = normal mode)
-cell xilinx.com:ip:xlconstant const_flags {
-  CONST_WIDTH 8
-  CONST_VAL 0
-}
+# v1.5.0 C2/C3: const_n_samples and const_flags REMOVED
+# n_samples now driven from cfg_data[223:208] via slice_n_samples (C2)
+# flags now driven from cfg_data[207:200] via slice_flags (C3)
 
 # Header Insert - adds 16-byte header to each packet
+# v1.5.0 C2: n_samples <- slice_n_samples/dout = cfg_data[223:208] (was const 100)
+# v1.5.0 C3: flags     <- slice_flags/dout     = cfg_data[207:200] (was const 0x00)
 cell pavel-demin:user:header_insert header_insert_0 {} {
   aclk pll_0/clk_out1
   aresetn rst_0/peripheral_aresetn
   prf_pulse prf_timing_0/prf_pulse
   prf_count prf_timing_0/prf_count
   pps_count prf_timing_0/pps_count
-  n_samples const_n_samples/dout
+  n_samples slice_n_samples/dout
   pol pol_ctrl_0/current_pol
-  flags const_flags/dout
+  flags slice_flags/dout
   S_AXIS axis_gate_0/M_AXIS
 }
 
-# Status Concatenation - combines status values for sts_data[127:0]
-# sts_data[15:0]   = writer_addr (from writer_0, connected later)
-# sts_data[31:16]  = reserved (zero)
-# sts_data[63:32]  = prf_count
-# sts_data[95:64]  = pps_count
-# sts_data[127:96] = prf_at_pps
+# Status Concatenation - combines status values for sts_data[159:0]
+# sts_data[15:0]    = writer_addr (from writer_0, connected later)
+# sts_data[31:16]   = reserved (zero)
+# sts_data[63:32]   = prf_count
+# sts_data[95:64]   = pps_count
+# sts_data[127:96]  = prf_at_pps
+# sts_data[128]     = current_pol   (v1.5.0 C4)
+# sts_data[129]     = pps_level     (v1.5.0 C4)
+# sts_data[130]     = spi_busy      (v1.5.0 C7)
+# sts_data[159:131] = reserved (zero, padding)
 
-# Constant zero for reserved bits
+# Constant zero for reserved bits [31:16]
 cell xilinx.com:ip:xlconstant const_sts_reserved {
   CONST_WIDTH 16
   CONST_VAL 0
 }
 
+# v1.5.0 C4/C7: Constant zero for STS padding bits [159:131]
+cell xilinx.com:ip:xlconstant const_sts_pad_29 {
+  CONST_WIDTH 29
+  CONST_VAL 0
+}
+
+# v1.5.0 C4/C7: sts_concat expanded from 5 ports (128 bits) to 9 ports (160 bits)
+#   Ports 0-4: unchanged from v1.4.0
+#   Port 5:    current_pol (C4)
+#   Port 6:    pps_level   (C4)
+#   Port 7:    spi_busy    (C7)
+#   Port 8:    zero padding to fill 160-bit STS width
 cell xilinx.com:ip:xlconcat sts_concat_0 {
-  NUM_PORTS 5
+  NUM_PORTS 9
   IN0_WIDTH 16
   IN1_WIDTH 16
   IN2_WIDTH 32
   IN3_WIDTH 32
   IN4_WIDTH 32
+  IN5_WIDTH 1
+  IN6_WIDTH 1
+  IN7_WIDTH 1
+  IN8_WIDTH 29
 } {
   In1 const_sts_reserved/dout
   In2 prf_timing_0/prf_count
   In3 prf_timing_0/pps_count
   In4 prf_timing_0/prf_at_pps
+  In5 pol_ctrl_0/current_pol
+  In6 pps_sync_0/pps_level
+  In7 adf4159_spi_0/spi_busy
+  In8 const_sts_pad_29/dout
   dout hub_0/sts_data
 }
 
 # Create axis_packetizer
+# v1.5.0 C5: CONTINUOUS FALSE->TRUE for streaming operation
+# With CONTINUOUS=FALSE, the packetizer disables itself after one packet
+# (axis_packetizer.v STOP block: int_enbl_next = 1'b0 on tlast).
+# With CONTINUOUS=TRUE, it resets counter to zero and immediately re-arms,
+# allowing continuous multi-packet streaming without reset cycles.
 cell pavel-demin:user:axis_packetizer pktzr_0 {
   AXIS_TDATA_WIDTH 64
   CNTR_WIDTH 32
-  CONTINUOUS FALSE
+  CONTINUOUS TRUE
   ALWAYS_READY TRUE
 } {
   S_AXIS header_insert_0/M_AXIS
