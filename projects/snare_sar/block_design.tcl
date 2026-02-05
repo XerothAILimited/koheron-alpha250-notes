@@ -1,5 +1,15 @@
 # ==============================================================================
-# snareSAR FPGA Block Design -- v1.5.0
+# snareSAR FPGA Block Design -- v1.6.0
+#
+# v1.6.0 changes:
+#   - Master clock reduced from 225 MHz to 200 MHz for timing margin
+#   - LMK04906 VCO: 2475 MHz -> 2400 MHz (PLL2_N: 99 -> 96)
+#   - CLKout_DIV: 11 -> 12
+#   - Post-CIC rate: 56.25 Msps -> 50 Msps
+#   - Post-FIR rate: 28.125 Msps -> 25 Msps
+#   - Range per sample: 5.333 m -> 6.0 m
+#
+# v1.5.0 changes (retained):
 #
 # Changes from v1.4.0:
 #   C1  ADF4159 SPI control via CFG registers (spi_data, spi_start)
@@ -70,10 +80,10 @@ create_bd_port -dir O txdata_out
 cell xilinx.com:ip:clk_wiz pll_0 {
   PRIMITIVE PLL
   PRIM_IN_FREQ.VALUE_SRC USER
-  PRIM_IN_FREQ 225.0
+  PRIM_IN_FREQ 200.0
   PRIM_SOURCE Differential_clock_capable_pin
   CLKOUT1_USED true
-  CLKOUT1_REQUESTED_OUT_FREQ 225.0
+  CLKOUT1_REQUESTED_OUT_FREQ 200.0
   CLKOUT1_REQUESTED_PHASE 78.75
   USE_RESET false
 } {
@@ -111,7 +121,7 @@ apply_bd_automation -rule xilinx.com:bd_rule:processing_system7 -config {
 # Create spi_init - automatic SPI initialization for LMK04906 and ADCs
 # Uses FCLK_CLK0 (200 MHz from PS) which is always available at power-up
 # Runs before Linux boots, eliminating chicken-and-egg clock initialization problem
-cell pavel-demin:user:spi_init spi_init_0 {} {
+cell pavel-demin:user:spi_init_200mhz spi_init_0 {} {
   clk ps_0/FCLK_CLK0
   aresetn ps_0/FCLK_RESET0_N
   spi_sclk spi_cfg_sclk
@@ -289,8 +299,8 @@ for {set i 0} {$i <= 3} {incr i} {
     FILTER_TYPE Decimation
     NUMBER_OF_STAGES 6
     FIXED_OR_INITIAL_RATE 4
-    INPUT_SAMPLE_FREQUENCY 225
-    CLOCK_FREQUENCY 225
+    INPUT_SAMPLE_FREQUENCY 200
+    CLOCK_FREQUENCY 200
     INPUT_DATA_WIDTH 14
     QUANTIZATION Truncation
     OUTPUT_DATA_WIDTH 24
@@ -332,8 +342,8 @@ cell xilinx.com:ip:fir_compiler fir_0 {
   DECIMATION_RATE 2
   NUMBER_CHANNELS 1
   NUMBER_PATHS 4
-  SAMPLE_FREQUENCY 56.25
-  CLOCK_FREQUENCY 225
+  SAMPLE_FREQUENCY 50
+  CLOCK_FREQUENCY 200
   OUTPUT_ROUNDING_MODE Convergent_Rounding_to_Even
   OUTPUT_WIDTH 18
   M_DATA_HAS_TREADY true
