@@ -1,5 +1,5 @@
 # ==============================================================================
-# snareSAR FPGA Block Design -- v1.7.0
+# snareSAR FPGA Block Design -- v1.8.0
 #
 # v1.6.0 changes:
 #   - Master clock reduced from 225 MHz to 200 MHz for timing margin
@@ -192,6 +192,48 @@ cell pavel-demin:user:port_slicer slice_2 {
   din hub_0/cfg_data
 }
 
+# ==============================================================================
+# v1.8.0 Local Reset Synchronizers
+# Reduces routing delay by placing sync registers near downstream modules
+# ==============================================================================
+
+# Reset synchronizers for CIC filters
+cell pavel-demin:user:axis_reset_sync reset_sync_cic0 {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
+cell pavel-demin:user:axis_reset_sync reset_sync_cic1 {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
+cell pavel-demin:user:axis_reset_sync reset_sync_cic2 {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
+cell pavel-demin:user:axis_reset_sync reset_sync_cic3 {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
+# Reset synchronizers for FIR chain
+cell pavel-demin:user:axis_reset_sync reset_sync_comb {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
+cell pavel-demin:user:axis_reset_sync reset_sync_fir {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
+cell pavel-demin:user:axis_reset_sync reset_sync_subset {} {
+  aclk pll_0/clk_out1
+  aresetn_in slice_0/dout
+}
+
 # Create port_slicer
 cell pavel-demin:user:port_slicer slice_3 {
   DIN_WIDTH 224 DIN_FROM 63 DIN_TO 32
@@ -309,7 +351,7 @@ for {set i 0} {$i <= 3} {incr i} {
   } {
     S_AXIS_DATA adc_$i/M_AXIS
     aclk pll_0/clk_out1
-    aresetn slice_0/dout
+    aresetn reset_sync_cic$i/aresetn_out
   }
 
 }
@@ -327,7 +369,7 @@ cell  xilinx.com:ip:axis_combiner comb_0 {
   S02_AXIS cic_2/M_AXIS_DATA
   S03_AXIS cic_3/M_AXIS_DATA
   aclk pll_0/clk_out1
-  aresetn slice_0/dout
+  aresetn reset_sync_comb/aresetn_out
 }
 
 # Create fir_compiler
@@ -351,7 +393,7 @@ cell xilinx.com:ip:fir_compiler fir_0 {
 } {
   S_AXIS_DATA comb_0/M_AXIS
   aclk pll_0/clk_out1
-  aresetn slice_0/dout
+  aresetn reset_sync_fir/aresetn_out
 }
 
 # Create axis_subset_converter
@@ -364,7 +406,7 @@ cell xilinx.com:ip:axis_subset_converter subset_0 {
 } {
   S_AXIS fir_0/M_AXIS_DATA
   aclk pll_0/clk_out1
-  aresetn slice_0/dout
+  aresetn reset_sync_subset/aresetn_out
 }
 
 # ==============================================================================
