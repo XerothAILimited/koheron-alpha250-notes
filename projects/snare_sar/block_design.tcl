@@ -1,5 +1,5 @@
 # ==============================================================================
-# snareSAR FPGA Block Design -- v1.6.0
+# snareSAR FPGA Block Design -- v1.7.0
 #
 # v1.6.0 changes:
 #   - Master clock reduced from 225 MHz to 200 MHz for timing margin
@@ -341,7 +341,7 @@ cell xilinx.com:ip:fir_compiler fir_0 {
   FILTER_TYPE Decimation
   DECIMATION_RATE 2
   NUMBER_CHANNELS 1
-  NUMBER_PATHS 4
+  NUMBER_PATHS 2
   SAMPLE_FREQUENCY 50
   CLOCK_FREQUENCY 200
   OUTPUT_ROUNDING_MODE Convergent_Rounding_to_Even
